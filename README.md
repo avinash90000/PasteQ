@@ -40,3 +40,29 @@ sudo apt install -y \
   gir1.2-gdkpixbuf-2.0 \
   xdotool
 ```
+
+## 🔧 Setting a Custom Keyboard Shortcut
+
+To launch the clipboard manager using a keyboard shortcut:
+
+1. Open **Settings** → **Keyboard**
+2. Scroll down and click **View and Customize Shortcuts**
+3. At the bottom, select **Custom Shortcuts**
+4. Click the **➕ Add Custom Shortcut** button
+5. Fill in the details:
+
+   - **Name**:  
+     _Your choice (e.g., Clipboard Manager)_
+
+   - **Command**:  
+     ```bash
+     python3 /path/to/main.py
+     ```
+     > Replace `/path/to/main.py` with the full path to the `main.py` script you downloaded.
+
+   - **Shortcut**:  
+     _Set a key combo like `Ctrl+Alt+V`_
+
+6. Click **Add** and you're done!
+
+You can now open the clipboard manager window anytime using your chosen shortcut
