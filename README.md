@@ -4,6 +4,11 @@ A lightweight and responsive clipboard manager for Linux, built using Python and
 
 ---
 
+## 🖼️ Screenshot
+
+![Clipboard Manager UI](assets/display_image.png)
+
+
 ## 🚀 Features
 
 - 📄 Tracks clipboard history (text + images)
