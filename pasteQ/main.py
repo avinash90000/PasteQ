@@ -4,6 +4,11 @@ import subprocess
 import dataClass
 import uuid
 
+import socket
+import os
+import threading
+
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango # type: ignore
 
@@ -44,9 +49,9 @@ class ClipboardManager(Gtk.Window):
         self.listbox.connect("row-selected", self.on_row_selected)
         self.scrolled_window.add(self.listbox)
         
-        self.connect("map", self.on_map)
+        #self.connect("map", self.on_map)
         self.connect("delete-event", self.on_window_close)
-        self.connect("visibility-notify-event", self.on_visibility_changed)
+        #self.connect("visibility-notify-event", self.on_visibility_changed)
 
 
         GLib.timeout_add(300, self.check_clipboard)
@@ -77,14 +82,12 @@ class ClipboardManager(Gtk.Window):
                 self.current_image_hash = obj.image_hash
         
         self.listbox.unselect_all()
+        self.present_window()
 
     def check_clipboard(self):
         # Handle text
         text = self.clipboard.wait_for_text()
-        if text == self.current_text:
-            pass
-            
-        else:
+        if text != self.current_text:
             if text:
                 print("new copy")
                 not_available = True
@@ -93,10 +96,11 @@ class ClipboardManager(Gtk.Window):
                         self.current_text = text
                         not_available = False
 
-                        row = self.text_id[i].widget
-                        self.listbox.remove(row)
-                        self.listbox.insert(row, 0)
-                        self.listbox.show_all()
+                        if self.text_id[i].text.strip() != "":
+                            row = self.text_id[i].widget
+                            self.listbox.remove(row)
+                            self.listbox.insert(row, 0)
+                            self.listbox.show_all()
                     
                         break
 
@@ -110,7 +114,8 @@ class ClipboardManager(Gtk.Window):
                     self.history.insert(0, uuid_unique)
 
                     if len(self.history) > self.MAX_HISTORY:
-                        self.history.pop()
+                        old_uuid = self.history.pop()
+                        del self.text_id[old_uuid]
                     self.add_text_entry(uuid_unique)
 
 
@@ -254,23 +259,13 @@ class ClipboardManager(Gtk.Window):
         Gtk.StyleContext.add_provider_for_screen(
             screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
-
-
-    def on_map(self, window):
-        self.present()
-        
+            
 
     def on_window_close(self, widget, event):
         # Hide the window instead of closing it
         print("Hiding")
         self.hide()
         return True  
-
-    def on_visibility_changed(self, widget, event):
-        if self.get_visible():
-            print("Window is visible")
-        else:
-            print("Window is not visible")
 
     def start_socket_server(self):
         if os.path.exists(SOCKET_PATH):
@@ -290,26 +285,22 @@ class ClipboardManager(Gtk.Window):
                     break
 
         threading.Thread(target=listen, daemon=True).start()
-
+    
     def present_window(self):
-        self.deiconify()
-        self.present()
+        if self.is_visible():
+            self.hide()
+        else:
+            self.deiconify()
+            self.present()
 
     def on_destroy(self, *args):
         if os.path.exists(SOCKET_PATH):
             os.remove(SOCKET_PATH)
 
-
-import socket
-import os
-import threading
-
 SOCKET_PATH = f"/tmp/clipboard_manager_{os.getuid()}.sock"
 
-
-
-
 def main():
+
     # If socket exists, send "show" to running instance and exit
     if os.path.exists(SOCKET_PATH):
         try:
@@ -322,8 +313,11 @@ def main():
     # Otherwise start app normally
     win = ClipboardManager()
     win.connect("destroy", win.on_destroy)
+    GLib.idle_add(win.hide)
     win.show_all()
+
     Gtk.main()
+
 
 if __name__ == "__main__":
     main()
