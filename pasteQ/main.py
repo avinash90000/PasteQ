@@ -5,7 +5,7 @@ import dataClass
 import uuid
 
 import socket
-import os
+import os, signal, sys
 import threading
 
 
@@ -14,9 +14,11 @@ from gi.repository import Gtk, Gdk, GLib, GdkPixbuf, Pango # type: ignore
 
 class ClipboardManager(Gtk.Window):
     def __init__(self):
+        global INITIAL_MAP
         super().__init__(title="GTK Clipboard Manager")
         self.set_default_size(350, 400)
         self.set_border_width(10)
+        self.initial_map = INITIAL_MAP
 
         self.set_resizable(False)
 
@@ -49,7 +51,7 @@ class ClipboardManager(Gtk.Window):
         self.listbox.connect("row-selected", self.on_row_selected)
         self.scrolled_window.add(self.listbox)
         
-        #self.connect("map", self.on_map)
+        #self.connect("map", self.on_visibility_changed)
         self.connect("delete-event", self.on_window_close)
         #self.connect("visibility-notify-event", self.on_visibility_changed)
 
@@ -85,6 +87,10 @@ class ClipboardManager(Gtk.Window):
         self.present_window()
 
     def check_clipboard(self):
+        if self.initial_map:
+            self.present_window()
+            self.initial_map = False
+
         # Handle text
         text = self.clipboard.wait_for_text()
         if text != self.current_text:
@@ -287,6 +293,7 @@ class ClipboardManager(Gtk.Window):
         threading.Thread(target=listen, daemon=True).start()
     
     def present_window(self):
+        print("presenting window")
         if self.is_visible():
             self.hide()
         else:
@@ -294,30 +301,69 @@ class ClipboardManager(Gtk.Window):
             self.present()
 
     def on_destroy(self, *args):
+        print("exit - initiated")
         if os.path.exists(SOCKET_PATH):
+            print("Deleting Socket")
             os.remove(SOCKET_PATH)
+            sys.exit(0)
 
 SOCKET_PATH = f"/tmp/clipboard_manager_{os.getuid()}.sock"
+INITIAL_MAP = True
+
 
 def main():
+    global INITIAL_MAP
 
-    # If socket exists, send "show" to running instance and exit
+    """ # If socket exists, send "show" to running instance and exit
     if os.path.exists(SOCKET_PATH):
+        print("socket exists")
         try:
             client = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             client.sendto(b"show", SOCKET_PATH)
             return
         except Exception as e:
-            print("Socket send failed:", e)
+            print("Socket send failed:", e) """
+
+    if os.path.exists(SOCKET_PATH):
+        print("old socket path available - trying to connect")
+        try:
+            # Attempt to connect to the socket to check if it's still valid
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            client.settimeout(1)  # Set a short timeout for the socket check
+            
+            # Try to send a "show" message to the existing instance
+            try:
+                client.sendto(b"show", SOCKET_PATH)
+                print("Existing instance found, showing it.")
+                INITIAL_MAP = False
+                return  # Exit without starting a new instance
+            except socket.error as e:
+                print("Error connecting to existing socket:", e)
+                # If the connection fails, the socket might be stale or broken, so remove it.
+                os.remove(SOCKET_PATH)
+                INITIAL_MAP = True
+        except Exception as e:
+            print(f"Error checking existing socket: {e}")
+            INITIAL_MAP = False
+
 
     # Otherwise start app normally
     win = ClipboardManager()
     win.connect("destroy", win.on_destroy)
-    GLib.idle_add(win.hide)
+    #win.connect("window-state-event", waste)
+    #GLib.idle_add(win.hide)
     win.show_all()
+
+    #print("tryint to minimise")
+    #win.connect("map", win.on_window_mapped)
+    #print("tried to minimise")
+    signal.signal(signal.SIGTERM, win.on_destroy)  # `kill PID`
+    signal.signal(signal.SIGINT, win.on_destroy)
 
     Gtk.main()
 
-
 if __name__ == "__main__":
+    print('Setting comm to GTK Clipboard Manager ...')
+    with open(f'/proc/self/comm', 'w') as f:
+        f.write('GTK Clipboard')
     main()
